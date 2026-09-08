@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join SGTFBA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400..900;1,400..900&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ledger:#131921;
+    --paper:#FFFFFF;
+    --brass:#FF9900;
+    --brass-light:#FFAC31;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: var(--ledger);
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(255,255,255,0.04), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(255,255,255,0.03), transparent 40%);
+    color:#131921;
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 36px 16px;
+  }
+  .wrap{ max-width: 480px; width:100%; margin:0 auto; }
+  .eyebrow{
+    color: var(--brass-light);
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-align:center;
+    margin-bottom: 10px;
+    opacity:0.85;
+  }
+  h1{
+    font-family:'Archivo', sans-serif;
+    font-weight:800;
+    font-size: clamp(26px, 5vw, 38px);
+    line-height:1.1;
+    color:#F7F8FA;
+    text-align:center;
+    margin: 0 0 10px;
+  }
+  h1 em{ font-style:normal; color: var(--brass-light); }
+  .sub{
+    text-align:center;
+    color: rgba(248,242,228,0.72);
+    font-size: 15px;
+    max-width: 400px;
+    margin: 0 auto 26px;
+    line-height:1.5;
+  }
+  .card{
+    background: var(--paper);
+    border-radius: 8px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.06);
+    padding: 26px 24px;
+  }
+  label{
+    display:block;
+    font-size: 13px;
+    font-weight:600;
+    margin-bottom: 8px;
+    color: rgba(19,25,33,0.8);
+  }
+  input[type="email"]{
+    width:100%;
+    padding: 12px 14px;
+    border-radius: 6px;
+    border: 1px solid rgba(19,25,33,0.18);
+    font-size: 15px;
+    font-family: inherit;
+    margin-bottom: 14px;
+  }
+  input[type="email"]:focus{
+    outline: none;
+    border-color: var(--brass);
+    box-shadow: 0 0 0 3px rgba(255,153,0,0.15);
+  }
+  button{
+    width:100%;
+    padding: 13px 14px;
+    border-radius: 6px;
+    border:none;
+    background: var(--brass);
+    color:#131921;
+    font-size: 15px;
+    font-weight:700;
+    font-family: inherit;
+    cursor:pointer;
+  }
+  button:hover{ background: var(--brass-light); }
+  button:disabled{ opacity:0.6; cursor:default; }
+  .msg{
+    margin-top: 14px;
+    font-size: 13.5px;
+    text-align:center;
+    line-height:1.5;
+  }
+  .msg.error{ color:#B3261E; }
+  .msg.success{ color:#1E7A34; }
+  footer{
+    text-align:center;
+    margin-top: 22px;
+    font-size: 11.5px;
+    color: rgba(248,242,228,0.45);
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="eyebrow">SGTFBA</div>
+  <h1>Join the <em>Discord</em></h1>
+  <p class="sub">Pop your email in below and you'll get a link straight in — no spam, just the important stuff.</p>
+
+  <div class="card">
+    <form id="joinForm">
+      <label for="email">Email address</label>
+      <input type="email" id="email" name="email" placeholder="you@example.com" required>
+      <button type="submit" id="submitBtn">Get my invite</button>
+      <div id="msg" class="msg" hidden></div>
+    </form>
+  </div>
+
+  <footer>Your email is only used to keep in touch about the group — never shared, never sold.</footer>
+</div>
+
+<script>
+  const form = document.getElementById('joinForm');
+  const btn = document.getElementById('submitBtn');
+  const msg = document.getElementById('msg');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    btn.disabled = true;
+    btn.textContent = 'One moment...';
+    msg.hidden = true;
+
+    try {
+      const res = await fetch('/api/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        msg.className = 'msg success';
+        msg.textContent = "You're in — redirecting you to Discord now...";
+        msg.hidden = false;
+        window.location.href = data.url;
+      } else {
+        throw new Error(data.error || 'Something went wrong.');
+      }
+    } catch (err) {
+      msg.className = 'msg error';
+      msg.textContent = err.message || 'Something went wrong — please try again.';
+      msg.hidden = false;
+      btn.disabled = false;
+      btn.textContent = 'Get my invite';
+    }
+  });
+</script>
+
+</body>
+</html>
