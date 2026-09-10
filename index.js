@@ -18,6 +18,10 @@
  *    server another way. Clicking it pops up the same email form as a
  *    Discord modal, and adds the email to the same Brevo list.
  *
+ * 3. GIVEAWAYS (giveaways.js): a /giveaway slash command, owner-only.
+ *    Posts an embed with an "Enter" button and automatically picks and
+ *    announces winner(s) when it ends. See giveaways.js for details.
+ *
  * Required environment variables (set these in Render, not in this file):
  *   DISCORD_TOKEN     - the same bot token used in sync-discord.js
  *   GUILD_ID          - the server ID (same as sync-discord.js — 1531634931833245746)
@@ -38,6 +42,7 @@ const {
   Events,
 } = require("discord.js");
 const express = require("express");
+const giveaways = require("./giveaways");
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
@@ -202,10 +207,19 @@ client.once(Events.ClientReady, async () => {
   } catch (err) {
     console.error("Failed to ensure button message:", err);
   }
+  giveaways.init(client, GUILD_ID);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
+    if (interaction.isChatInputCommand()) {
+      if (await giveaways.handleSlashCommand(interaction)) return;
+    }
+
+    if (interaction.isButton() && (await giveaways.handleButton(interaction))) {
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId === BUTTON_CUSTOM_ID) {
       const modal = new ModalBuilder().setCustomId(MODAL_CUSTOM_ID).setTitle("Join the Email List");
       const emailInput = new TextInputBuilder()
