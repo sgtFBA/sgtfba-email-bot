@@ -22,11 +22,20 @@
  *    Posts an embed with an "Enter" button and automatically picks and
  *    announces winner(s) when it ends. See giveaways.js for details.
  *
+ * 4. AUTO-ROLE: the moment someone joins the server (however they got in),
+ *    the bot gives them one role automatically — MEMBER_ROLE_NAME below.
+ *    Nothing else is touched; any extra roles are still manual.
+ *    IMPORTANT: this needs the "Server Members Intent" turned on for the
+ *    bot in the Discord Developer Portal (Bot tab -> Privileged Gateway
+ *    Intents), or the bot won't be able to log in at all once this is
+ *    added. See README.md.
+ *
  * Required environment variables (set these in Render, not in this file):
  *   DISCORD_TOKEN     - the same bot token used in sync-discord.js
  *   GUILD_ID          - the server ID (same as sync-discord.js — 1531634931833245746)
  *   BREVO_API_KEY     - from Brevo: account menu -> SMTP & API -> API Keys
  *   BREVO_LIST_NAME   - which Brevo list to add emails to (defaults to "discord")
+ *   MEMBER_ROLE_NAME  - role to auto-assign to every new joiner (defaults to "member")
  */
 
 const path = require("path");
@@ -48,6 +57,7 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const BREVO_LIST_NAME = process.env.BREVO_LIST_NAME || "discord";
+const MEMBER_ROLE_NAME = process.env.MEMBER_ROLE_NAME || "member";
 
 const BUTTON_CUSTOM_ID = "join_email_list";
 const MODAL_CUSTOM_ID = "email_modal";
@@ -152,11 +162,29 @@ async function addEmailToBrevo(email, discordTag) {
 }
 
 // ---- Discord ----
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// GuildMembers is a PRIVILEGED intent — it has to also be switched on for
+// this bot in the Discord Developer Portal (Bot tab -> Privileged Gateway
+// Intents -> Server Members Intent), or login will fail outright. See
+// README.md.
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
 // Resolved once the bot is ready; reused both for the backup button and
 // for minting invites from /api/join.
 let welcomeChannel = null;
+
+// Resolved once the bot is ready; reused for auto-assigning the member
+// role to everyone who joins.
+let memberRole = null;
+
+async function resolveMemberRole(guild) {
+  const roles = await guild.roles.fetch();
+  memberRole = roles.find((r) => r.name.toLowerCase() === MEMBER_ROLE_NAME.toLowerCase()) || null;
+  if (!memberRole) {
+    console.error(
+      `No role named "${MEMBER_ROLE_NAME}" found — auto-role on join will be skipped. Check the role exists and MEMBER_ROLE_NAME matches it exactly.`
+    );
+  }
+}
 
 async function createSingleUseInvite() {
   if (!welcomeChannel) {
@@ -207,7 +235,27 @@ client.once(Events.ClientReady, async () => {
   } catch (err) {
     console.error("Failed to ensure button message:", err);
   }
+  try {
+    const guild = await client.guilds.fetch(GUILD_ID);
+    await resolveMemberRole(guild);
+    if (memberRole) console.log(`Auto-role on join is active — new members will get "${memberRole.name}".`);
+  } catch (err) {
+    console.error("Failed to resolve member role:", err);
+  }
   giveaways.init(client, GUILD_ID);
+});
+
+client.on(Events.GuildMemberAdd, async (member) => {
+  if (!memberRole) return; // not found at startup — already logged
+  try {
+    await member.roles.add(memberRole, "Auto-role on join");
+    console.log(`Gave "${memberRole.name}" to ${member.user.tag} on join.`);
+  } catch (err) {
+    // Most likely cause: the bot's own role sits below the member role in
+    // the server's role list — Discord only lets a bot assign roles that
+    // are positioned below its own highest role.
+    console.error(`Failed to auto-role ${member.user.tag}:`, err.message || err);
+  }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
